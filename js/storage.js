@@ -1,17 +1,25 @@
 /**
  * [storage.js - 로컬 저장소 및 진행 상황 관리]
- * 플레이어의 스테이지 해금 상태, 에너지 코어 획득 기록, 음소거 설정을 브라우저에 안전하게 저장합니다.
- * localStorage가 제한된 환경(시크릿 모드, iframe 보안 등)에서도 오류 없이 실행되도록 메모리 폴백(Fallback)을 지원합니다.
+ * 플레이어의 1~10단계 스테이지 해금 상태, 에너지 코어 10개 획득 기록,
+ * 획득한 특별 배지, 음소거 설정을 브라우저에 안전하게 저장합니다.
+ * 기존 3단계 세이브 데이터를 안전하게 새 10단계 포맷으로 자동 마이그레이션합니다.
  */
 
 class StorageManager {
   constructor() {
     this.storageKey = 'light_maze_save_data';
     this.memoryStore = {
-      unlockedStage: 1, // 기본 1단계 해금
-      coresCollected: 0, // 기본 0개
-      isMuted: false,   // 기본 소리 켬
-      stageCleared: { 1: false, 2: false, 3: false }
+      unlockedStage: 1,      // 기본 1단계 해금 (최대 10)
+      coresCollected: 0,     // 획득한 총 에너지 코어 수 (1~10)
+      isMuted: false,        // 기본 소리 켬
+      stageCleared: {
+        1: false, 2: false, 3: false, 4: false, 5: false,
+        6: false, 7: false, 8: false, 9: false, 10: false
+      },
+      badges: {
+        opticalArchitect: false, // 7단계 거울 3개 이하 클리어 배지
+        mazeMaster: false        // 10단계 최종 클리어 배지
+      }
     };
     this.isStorageAvailable = this.checkStorageAvailability();
     this.load();
@@ -30,17 +38,42 @@ class StorageManager {
     }
   }
 
-  // 저장된 데이터 불러오기
+  // 저장된 데이터 불러오기 및 하위 호환 자동 마이그레이션
   load() {
     if (!this.isStorageAvailable) return;
     try {
       const saved = window.localStorage.getItem(this.storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        this.memoryStore = { ...this.memoryStore, ...parsed };
+
+        // 기존 3단계 저장 데이터 호환 마이그레이션
+        const stageCleared = { ...this.memoryStore.stageCleared };
+        if (parsed.stageCleared) {
+          for (let i = 1; i <= 10; i++) {
+            if (parsed.stageCleared[i]) {
+              stageCleared[i] = true;
+            }
+          }
+        }
+
+        const badges = {
+          ...this.memoryStore.badges,
+          ...(parsed.badges || {})
+        };
+
+        this.memoryStore = {
+          ...this.memoryStore,
+          ...parsed,
+          stageCleared,
+          badges,
+          unlockedStage: Math.max(1, Math.min(10, parsed.unlockedStage || 1))
+        };
+
+        // 전체 코어 개수 재계산 (완료한 단계 수)
+        this.recalculateCores();
       }
     } catch (e) {
-      console.error('세이브 데이터 로드 실패:', e);
+      console.error('세이브 데이터 로드 실패, 기본값으로 초기화:', e);
     }
   }
 
@@ -54,22 +87,32 @@ class StorageManager {
     }
   }
 
+  // 획득한 총 에너지 코어 수 재계산 (완료한 스테이지 1개당 코어 1개)
+  recalculateCores() {
+    let count = 0;
+    for (let i = 1; i <= 10; i++) {
+      if (this.memoryStore.stageCleared[i]) {
+        count++;
+      }
+    }
+    this.memoryStore.coresCollected = count;
+  }
+
   // 스테이지 클리어 기록 및 다음 단계 해금
-  clearStage(stageId) {
+  clearStage(stageId, badgeEarned = null) {
     this.memoryStore.stageCleared[stageId] = true;
-    
-    // 해금 단계 업데이트 (최대 3단계까지)
-    if (stageId + 1 <= 3 && this.memoryStore.unlockedStage < stageId + 1) {
+
+    // 배지 획득 처리
+    if (badgeEarned && this.memoryStore.badges[badgeEarned] !== undefined) {
+      this.memoryStore.badges[badgeEarned] = true;
+    }
+
+    // 다음 단계 해금 (최대 10단계까지)
+    if (stageId + 1 <= 10 && this.memoryStore.unlockedStage < stageId + 1) {
       this.memoryStore.unlockedStage = stageId + 1;
     }
 
-    // 획득한 에너지 코어 수 계산 (클리어한 스테이지 개수)
-    let count = 0;
-    for (let i = 1; i <= 3; i++) {
-      if (this.memoryStore.stageCleared[i]) count++;
-    }
-    this.memoryStore.coresCollected = count;
-
+    this.recalculateCores();
     this.save();
   }
 
@@ -84,9 +127,14 @@ class StorageManager {
     return !!this.memoryStore.stageCleared[stageId];
   }
 
-  // 획득한 코어 총 개수 반환
+  // 획득한 코어 총 개수 반환 (0 ~ 10)
   getCoresCount() {
     return this.memoryStore.coresCollected;
+  }
+
+  // 배지 획득 여부 확인
+  hasBadge(badgeKey) {
+    return !!this.memoryStore.badges[badgeKey];
   }
 
   // 음소거 상태 가져오기
@@ -100,13 +148,20 @@ class StorageManager {
     this.save();
   }
 
-  // 진행 상황 초기화 (디버깅 또는 처음부터 다시하기용)
+  // 진행 상황 전체 초기화 (데이터 초기화 메뉴용)
   resetAll() {
     this.memoryStore = {
       unlockedStage: 1,
       coresCollected: 0,
       isMuted: this.memoryStore.isMuted,
-      stageCleared: { 1: false, 2: false, 3: false }
+      stageCleared: {
+        1: false, 2: false, 3: false, 4: false, 5: false,
+        6: false, 7: false, 8: false, 9: false, 10: false
+      },
+      badges: {
+        opticalArchitect: false,
+        mazeMaster: false
+      }
     };
     this.save();
   }
