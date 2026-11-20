@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>빛의 미로: 사라진 에너지 코어</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 전체 게임 컨테이너 -->
+  <div id="game-app">
+
+    <!-- ================================================================= -->
+    <!-- [화면 1] 시작 화면 (Intro Screen) -->
+    <!-- ================================================================= -->
+    <section id="screen-intro" class="screen active">
+      <div class="intro-card">
+        <div class="lab-badge">광학 연구소 시뮬레이션</div>
+        <h1 class="game-title">빛의 미로<br><span class="highlight">사라진 에너지 코어</span></h1>
+        
+        <p class="story-text">
+          도시의 전력을 공급하던 <strong>3개의 에너지 코어</strong>가 정지했습니다.<br>
+          광학 연구소의 탐험가가 되어 <strong>빛의 직진</strong>과 <strong>거울의 반사 원리</strong>를 이용해<br>
+          빛을 수신기로 유도하고 도시의 에너지를 복구해 주세요!
+        </p>
+
+        <div class="notice-box">
+          <span class="icon">ℹ️</span>
+          <span>본 게임은 <strong>빛의 직진과 반사</strong>를 직관적으로 탐구하는 <strong>2차원 과학 모형</strong>입니다.</span>
+        </div>
+
+        <div class="core-preview">
+          <div class="core-slot" id="intro-core-1"><div class="core-gem"></div><span>코어 1</span></div>
+          <div class="core-slot" id="intro-core-2"><div class="core-gem"></div><span>코어 2</span></div>
+          <div class="core-slot" id="intro-core-3"><div class="core-gem"></div><span>코어 3</span></div>
+        </div>
+
+        <div class="action-buttons">
+          <button id="btn-start-game" class="btn btn-primary btn-large">🚀 탐험 시작하기</button>
+          <button id="btn-show-stages" class="btn btn-secondary">📋 단계 선택</button>
+        </div>
+
+        <div class="guide-steps">
+          <div class="step-pill">1. 관찰</div>
+          <span class="arrow">→</span>
+          <div class="step-pill">2. 예측</div>
+          <span class="arrow">→</span>
+          <div class="step-pill">3. 거울 배치</div>
+          <span class="arrow">→</span>
+          <div class="step-pill">4. 빛 발사</div>
+          <span class="arrow">→</span>
+          <div class="step-pill">5. 수정·도전</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- [화면 2] 단계 선택 화면 (Stage Select Screen) -->
+    <!-- ================================================================= -->
+    <section id="screen-stages" class="screen">
+      <div class="stage-select-card">
+        <div class="screen-header">
+          <h2>복구 미션 단계 선택</h2>
+          <button id="btn-back-to-intro" class="btn btn-outline btn-small">🏠 처음으로</button>
+        </div>
+
+        <div class="stage-list">
+          <!-- 1단계 카드 -->
+          <div class="stage-card" id="stage-card-1" data-stage="1">
+            <div class="stage-status-icon">🔓</div>
+            <div class="stage-info">
+              <div class="stage-badge">1단계</div>
+              <h3 class="stage-card-title">빛의 첫걸음</h3>
+              <p class="stage-desc">빛의 직진을 이해하고 방향을 조절하여 첫 번째 코어를 복구합니다.</p>
+            </div>
+            <div class="stage-reward" id="stage-reward-1">⚪ 비활성</div>
+          </div>
+
+          <!-- 2단계 카드 -->
+          <div class="stage-card locked" id="stage-card-2" data-stage="2">
+            <div class="stage-status-icon">🔒</div>
+            <div class="stage-info">
+              <div class="stage-badge">2단계</div>
+              <h3 class="stage-card-title">거울 한 장의 비밀</h3>
+              <p class="stage-desc">거울로 빛의 방향을 바꾸며 법선과 입사각·반사각을 관찰합니다.</p>
+            </div>
+            <div class="stage-reward" id="stage-reward-2">⚪ 잠김</div>
+          </div>
+
+          <!-- 3단계 카드 -->
+          <div class="stage-card locked" id="stage-card-3" data-stage="3">
+            <div class="stage-status-icon">🔒</div>
+            <div class="stage-info">
+              <div class="stage-badge">3단계</div>
+              <h3 class="stage-card-title">벽 너머의 신호</h3>
+              <p class="stage-desc">중앙의 두꺼운 벽을 2개의 거울로 우회하여 도시를 완전히 복구합니다.</p>
+            </div>
+            <div class="stage-reward" id="stage-reward-3">⚪ 잠김</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- [화면 3] 메인 게임 화면 (Gameplay Screen) -->
+    <!-- ================================================================= -->
+    <section id="screen-game" class="screen">
+      <!-- 최상단 네비게이션 & 코어 상황판 -->
+      <header class="game-header">
+        <div class="header-left">
+          <button id="btn-nav-stages" class="btn btn-icon" title="단계 선택으로 이동">📋 목록</button>
+          <div class="stage-title-wrap">
+            <span id="current-stage-title" class="current-title">1단계: 빛의 첫걸음</span>
+            <span id="current-stage-goal" class="current-goal">빛의 직진 이해하기</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- 에너지 코어 3개 현황 -->
+          <div class="energy-dashboard" title="복구된 에너지 코어">
+            <div class="core-indicator" id="core-ind-1"></div>
+            <div class="core-indicator" id="core-ind-2"></div>
+            <div class="core-indicator" id="core-ind-3"></div>
+          </div>
+          <!-- 음소거 버튼 -->
+          <button id="btn-toggle-sound" class="btn btn-icon" title="소리 켜기/끄기">🔊</button>
+        </div>
+      </header>
+
+      <!-- 미션 안내 메시지 바 -->
+      <div class="mission-banner">
+        <span class="mission-icon">🎯</span>
+        <span id="mission-prompt-text" class="mission-text">빛은 어느 방향으로 이동할까요?</span>
+      </div>
+
+      <!-- 메인 캔버스 뷰포트 (미로 및 레이저 렌더링 영역) -->
+      <main class="canvas-container">
+        <canvas id="gameCanvas" width="480" height="420"></canvas>
+
+        <!-- 거울 클릭 시 나타나는 플로팅 조작 팝업 -->
+        <div id="mirror-popup" class="mirror-popup hidden">
+          <div class="popup-title">거울 조작</div>
+          <div class="popup-buttons">
+            <button id="btn-popup-rotate-ccw" class="btn btn-small" title="반시계 45도 회전">↺ 45°</button>
+            <button id="btn-popup-rotate-cw" class="btn btn-small" title="시계 45도 회전">↻ 45°</button>
+            <button id="btn-popup-remove" class="btn btn-small btn-danger" title="거울 회수">✖ 회수</button>
+          </div>
+        </div>
+      </main>
+
+      <!-- 게임 피드백 & 상태 출력 바 -->
+      <div id="feedback-bar" class="feedback-bar">
+        <span id="feedback-icon" class="fb-icon">💡</span>
+        <span id="feedback-text" class="fb-text">거울을 배치하거나 발사 버튼을 눌러보세요.</span>
+      </div>
+
+      <!-- 하단 조작 컨트롤러 영역 -->
+      <footer class="game-controls">
+        <!-- 1단계 전용 컨트롤: 광원 발사 방향 선택 버튼군 -->
+        <div id="source-dir-controls" class="control-section hidden">
+          <span class="control-label">광원 발사 방향:</span>
+          <div class="dir-buttons">
+            <button class="btn btn-dir" data-dir="up">▲ 상</button>
+            <button class="btn btn-dir" data-dir="down">▼ 하</button>
+            <button class="btn btn-dir" data-dir="left">◀ 좌</button>
+            <button class="btn btn-dir active" data-dir="right">▶ 우</button>
+          </div>
+        </div>
+
+        <!-- 2, 3단계 전용 컨트롤: 거울 도구함 -->
+        <div id="mirror-inventory-controls" class="control-section hidden">
+          <span class="control-label">도구함:</span>
+          <button id="btn-select-mirror" class="btn btn-tool active">
+            <span class="tool-icon">🪞</span>
+            <span class="tool-text">회전 거울</span>
+            <span id="mirror-count-badge" class="count-badge">1/1</span>
+          </button>
+          <span class="tool-hint">※ 점선 슬롯을 누르면 거울이 설치됩니다.</span>
+        </div>
+
+        <!-- 메인 액션 버튼 그룹 (발사, 관찰기, 힌트, 초기화) -->
+        <div class="action-bar">
+          <button id="btn-fire-light" class="btn btn-primary btn-fire">⚡ 빛 발사</button>
+          <button id="btn-toggle-observer" class="btn btn-toggle" title="법선과 입사각, 반사각 표시">
+            <span id="observer-state-icon">🔬</span> 관찰기: <strong id="observer-state-text">OFF</strong>
+          </button>
+          <button id="btn-hint" class="btn btn-secondary btn-icon-text">💡 힌트</button>
+          <button id="btn-reset-stage" class="btn btn-outline btn-icon-text">🔄 초기화</button>
+        </div>
+      </footer>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- [모달 1] 단계 성공 모달 (Success Modal) -->
+    <!-- ================================================================= -->
+    <div id="modal-success" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-badge success">✨ 에너지 코어 복구 완료!</div>
+        <h2 id="modal-stage-title">1단계 클리어</h2>
+        
+        <div class="core-animation-box">
+          <div class="core-pulse-gem"></div>
+          <p id="modal-core-desc">에너지 코어 1개가 정상 작동하기 시작했습니다.</p>
+        </div>
+
+        <!-- 과학 원리 설명 상자 -->
+        <div class="science-explanation">
+          <div class="exp-title">🔬 함께 알아본 과학 원리</div>
+          <p id="modal-science-text">빛은 균일한 매질 안에서 직선으로 곧게 나아갑니다(직진).</p>
+        </div>
+
+        <div class="modal-buttons">
+          <button id="btn-modal-next" class="btn btn-primary btn-large">다음 단계로 ➡️</button>
+          <button id="btn-modal-replay" class="btn btn-secondary">배치 다시보기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- [모달 2] 최종 엔딩 모달 (Game Complete Modal) -->
+    <!-- ================================================================= -->
+    <div id="modal-complete" class="modal-overlay hidden">
+      <div class="modal-card complete-card">
+        <div class="city-lights-anim">🏙️ 💡 ⚡</div>
+        <div class="modal-badge super-success">🎉 탐험 대성공!</div>
+        <h2>도시의 불빛이 모두 켜졌습니다!</h2>
+        
+        <p class="complete-text">
+          광학 연구소 탐험가님의 뛰어난 <strong>빛의 직진과 반사 법칙</strong> 이해 덕분에<br>
+          3개의 모든 에너지 코어가 완전 복구되었습니다.
+        </p>
+
+        <div class="science-summary-box">
+          <h4>오늘 탐험한 과학 법칙 요약</h4>
+          <ul>
+            <li><strong>빛의 직진:</strong> 빛은 장애물이 없는 공간에서 곧게 나아갑니다.</li>
+            <li><strong>법선 기준:</strong> 거울 면에 수직인 선(법선)이 각도 측정의 기준입니다.</li>
+            <li><strong>반사의 법칙:</strong> 입사각과 반사각의 크기는 언제나 같습니다.</li>
+          </ul>
+        </div>
+
+        <div class="modal-buttons">
+          <button id="btn-complete-stages" class="btn btn-primary btn-large">단계 선택으로 가기</button>
+          <button id="btn-complete-restart" class="btn btn-secondary">처음부터 다시하기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- [모달 3] 힌트 모달 (Hint Modal) -->
+    <!-- ================================================================= -->
+    <div id="modal-hint" class="modal-overlay hidden">
+      <div class="modal-card hint-card">
+        <div class="modal-badge hint">💡 과학 탐구 힌트</div>
+        <h3 id="hint-stage-name">1단계 힌트</h3>
+        <p id="hint-content-text" class="hint-text">힌트 내용이 표시됩니다.</p>
+        <div class="hint-nav">
+          <span id="hint-step-indicator">힌트 1/2</span>
+          <button id="btn-next-hint" class="btn btn-small btn-secondary">다음 힌트 ▷</button>
+        </div>
+        <div class="modal-buttons">
+          <button id="btn-close-hint" class="btn btn-primary">확인하고 계속하기</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 스크립트 모듈 로드 순서: 저장소 -> 오디오 -> 광학엔진 -> 스테이지 -> 메인게임 -->
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/optics.js"></script>
+  <script src="js/stages.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
