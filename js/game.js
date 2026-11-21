@@ -87,6 +87,7 @@ class LightMazeGame {
 
     // 거울 팝업
     this.mirrorPopup = document.getElementById('mirror-popup');
+    this.mirrorPopupTitle = this.mirrorPopup ? this.mirrorPopup.querySelector('.popup-title') : null;
 
     // 컨트롤 패널
     this.sourceControls = document.getElementById('source-dir-controls');
@@ -518,7 +519,7 @@ class LightMazeGame {
     const clickedMirror = this.mirrors.find(m => m.x === gx && m.y === gy);
     if (clickedMirror) {
       this.safeSound('playClick');
-      this.showMirrorPopup(clickedMirror, e.clientX, e.clientY);
+      this.showMirrorPopup(clickedMirror);
       return;
     }
 
@@ -542,14 +543,17 @@ class LightMazeGame {
       this.updateMirrorInventoryBadge();
       this.setFeedback(`거울이 (${gx}, ${gy})에 설치되었습니다. 거울을 눌러 회전시키거나 회수할 수 있습니다.`, 'success');
 
-      // 설치 직후 조작 팝업 띄움
-      this.showMirrorPopup(newMirror, e.clientX, e.clientY);
+      // 설치 직후 거울 칸을 가리지 않게 위/옆으로 띄운 조작 팝업 출력
+      this.showMirrorPopup(newMirror);
     }
   }
 
   // 거울 회전
   rotateMirror(mirror, deltaDeg) {
     mirror.angle = (mirror.angle + deltaDeg + 360) % 180; // 0, 45, 90, 135도 순환
+    if (this.mirrorPopupTitle) {
+      this.mirrorPopupTitle.textContent = `거울 조작 (${mirror.angle}°)`;
+    }
     this.setFeedback(`거울 각도가 ${mirror.angle}° 로 회전되었습니다.`, 'info');
   }
 
@@ -560,17 +564,59 @@ class LightMazeGame {
     this.setFeedback('거울을 도구함으로 회수했습니다.', 'info');
   }
 
-  // 거울 조작 팝업 표시
-  showMirrorPopup(mirror, clientX, clientY) {
+  /**
+   * 거울 조작 팝업 표시
+   * 사용자의 요청에 따라 바닥의 실제 거울 위치를 전혀 가리지 않도록
+   * 거울 칸 바깥쪽(위쪽 또는 옆쪽)으로 넉넉하게 띄워서 배치합니다.
+   */
+  showMirrorPopup(mirror) {
     this.activeMirror = mirror;
     this.mirrorPopup.classList.remove('hidden');
 
-    const containerRect = this.canvas.parentElement.getBoundingClientRect();
-    const relX = clientX - containerRect.left;
-    const relY = clientY - containerRect.top;
+    if (this.mirrorPopupTitle) {
+      this.mirrorPopupTitle.textContent = `거울 조작 (${mirror.angle}°)`;
+    }
 
-    const popupX = Math.max(10, Math.min(containerRect.width - 150, relX - 60));
-    const popupY = Math.max(10, Math.min(containerRect.height - 80, relY - 70));
+    const containerRect = this.canvas.parentElement.getBoundingClientRect();
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const scaleX = canvasRect.width / this.canvas.width;
+    const scaleY = canvasRect.height / this.canvas.height;
+
+    // 거울 칸의 캔버스 화면 기준 중심 좌표
+    const mirrorCenterX = (mirror.x + 0.5) * this.gridSize * scaleX + (canvasRect.left - containerRect.left);
+    const mirrorCenterY = (mirror.y + 0.5) * this.gridSize * scaleY + (canvasRect.top - containerRect.top);
+    const halfCellH = (this.gridSize * scaleY) / 2;
+    const halfCellW = (this.gridSize * scaleX) / 2;
+
+    const popupWidth = 180;
+    const popupHeight = 72;
+
+    // 기본 배치: 거울 칸 위쪽으로 넉넉히 15px 띄움 (거울을 100% 가리지 않음)
+    let popupX = mirrorCenterX - popupWidth / 2;
+    let popupY = mirrorCenterY - halfCellH - popupHeight - 14;
+
+    // 위쪽 공간이 부족할 때 (1행 또는 2행 상단): 옆쪽 또는 아래쪽으로 지능적 우회
+    if (popupY < 8) {
+      // 1. 오른쪽 옆으로 띄우기
+      if (mirrorCenterX + halfCellW + popupWidth + 14 < containerRect.width) {
+        popupX = mirrorCenterX + halfCellW + 14;
+        popupY = mirrorCenterY - popupHeight / 2;
+      }
+      // 2. 왼쪽 옆으로 띄우기
+      else if (mirrorCenterX - halfCellW - popupWidth - 14 > 8) {
+        popupX = mirrorCenterX - halfCellW - popupWidth - 14;
+        popupY = mirrorCenterY - popupHeight / 2;
+      }
+      // 3. 아래쪽으로 넉넉히 띄우기
+      else {
+        popupX = mirrorCenterX - popupWidth / 2;
+        popupY = mirrorCenterY + halfCellH + 14;
+      }
+    }
+
+    // 컨테이너 경계선 클리핑 방지
+    popupX = Math.max(8, Math.min(containerRect.width - popupWidth - 8, popupX));
+    popupY = Math.max(8, Math.min(containerRect.height - popupHeight - 8, popupY));
 
     this.mirrorPopup.style.left = `${popupX}px`;
     this.mirrorPopup.style.top = `${popupY}px`;
