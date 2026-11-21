@@ -1,7 +1,7 @@
 /**
  * [game.js - 메인 게임 컨트롤러 및 캔버스 렌더러]
  * 이 스크립트는 게임의 흐름(화면 전환, 사용자 터치/클릭 입력, 거울 배치/회전/회수,
- * 광선 발사 애니메이션, 흡수/센서/수신기 시각화, 법선·각도 관찰기, 모달 제어)을 총괄합니다.
+ * 광선 발사 애니메이션, 흡수/센서/수신기 시각화, 법선·각도 관찰기, 힌트 및 정답 모달)을 총괄합니다.
  * 1~10단계 및 4개 구역 전체를 유기적으로 통합 지원합니다.
  */
 
@@ -74,6 +74,7 @@ class LightMazeGame {
       success: document.getElementById('modal-success'),
       complete: document.getElementById('modal-complete'),
       hint: document.getElementById('modal-hint'),
+      solution: document.getElementById('modal-solution'),
       confirmReset: document.getElementById('modal-confirm-reset')
     };
 
@@ -403,6 +404,31 @@ class LightMazeGame {
       this.closeModal('hint');
     });
 
+    // 힌트 모달 내 [🔑 정답 확인하기] 버튼
+    const btnOpenSolution = document.getElementById('btn-open-solution');
+    if (btnOpenSolution) {
+      btnOpenSolution.addEventListener('click', () => {
+        this.safeSound('playClick');
+        this.openSolutionModal();
+      });
+    }
+
+    // 정답 모달 내 버튼들
+    const btnApplySolution = document.getElementById('btn-apply-solution');
+    if (btnApplySolution) {
+      btnApplySolution.addEventListener('click', () => {
+        this.applySolution();
+      });
+    }
+
+    const btnCloseSolution = document.getElementById('btn-close-solution');
+    if (btnCloseSolution) {
+      btnCloseSolution.addEventListener('click', () => {
+        this.safeSound('playClick');
+        this.closeModal('solution');
+      });
+    }
+
     // 세이브 데이터 전체 초기화 모달
     document.getElementById('btn-reset-saved-data').addEventListener('click', () => {
       this.safeSound('playClick');
@@ -503,7 +529,7 @@ class LightMazeGame {
 
   // 캔버스 클릭/터치 입력 처리
   handleCanvasPointerDown(e) {
-    if (this.isFiring) return; // 발사 애니메이션 중 조작 차단
+    if (this.isFiring) return;
 
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = this.canvas.width / rect.width;
@@ -523,13 +549,12 @@ class LightMazeGame {
       return;
     }
 
-    // 2. 거울 팝업이 열려 있는 상태에서 다른 곳 클릭 시 팝업 닫기
+    // 2. 거울 팝업 닫기
     this.hideMirrorPopup();
 
     // 3. 거울 설치 가능 슬롯을 클릭했는지 확인
     const isSlot = this.currentStage.slots && this.currentStage.slots.some(s => s.x === gx && s.y === gy);
     if (isSlot) {
-      // 거울 잔여 수량 확인
       if (this.mirrors.length >= this.currentStage.availableMirrors) {
         this.safeSound('playError');
         this.setFeedback(`더 이상 거울을 설치할 수 없습니다! (최대 ${this.currentStage.availableMirrors}개)`, 'warning');
@@ -543,14 +568,14 @@ class LightMazeGame {
       this.updateMirrorInventoryBadge();
       this.setFeedback(`거울이 (${gx}, ${gy})에 설치되었습니다. 거울을 눌러 회전시키거나 회수할 수 있습니다.`, 'success');
 
-      // 설치 직후 거울 칸을 가리지 않게 위/옆으로 띄운 조작 팝업 출력
+      // 팝업 표시
       this.showMirrorPopup(newMirror);
     }
   }
 
   // 거울 회전
   rotateMirror(mirror, deltaDeg) {
-    mirror.angle = (mirror.angle + deltaDeg + 360) % 180; // 0, 45, 90, 135도 순환
+    mirror.angle = (mirror.angle + deltaDeg + 360) % 180;
     if (this.mirrorPopupTitle) {
       this.mirrorPopupTitle.textContent = `거울 조작 (${mirror.angle}°)`;
     }
@@ -564,11 +589,7 @@ class LightMazeGame {
     this.setFeedback('거울을 도구함으로 회수했습니다.', 'info');
   }
 
-  /**
-   * 거울 조작 팝업 표시
-   * 사용자의 요청에 따라 바닥의 실제 거울 위치를 전혀 가리지 않도록
-   * 거울 칸 바깥쪽(위쪽 또는 옆쪽)으로 넉넉하게 띄워서 배치합니다.
-   */
+  // 거울 조작 팝업 표시 (바닥 슬롯을 가리지 않게 위/옆으로 넉넉히 띄움)
   showMirrorPopup(mirror) {
     this.activeMirror = mirror;
     this.mirrorPopup.classList.remove('hidden');
@@ -582,7 +603,6 @@ class LightMazeGame {
     const scaleX = canvasRect.width / this.canvas.width;
     const scaleY = canvasRect.height / this.canvas.height;
 
-    // 거울 칸의 캔버스 화면 기준 중심 좌표
     const mirrorCenterX = (mirror.x + 0.5) * this.gridSize * scaleX + (canvasRect.left - containerRect.left);
     const mirrorCenterY = (mirror.y + 0.5) * this.gridSize * scaleY + (canvasRect.top - containerRect.top);
     const halfCellH = (this.gridSize * scaleY) / 2;
@@ -591,30 +611,22 @@ class LightMazeGame {
     const popupWidth = 180;
     const popupHeight = 72;
 
-    // 기본 배치: 거울 칸 위쪽으로 넉넉히 15px 띄움 (거울을 100% 가리지 않음)
     let popupX = mirrorCenterX - popupWidth / 2;
     let popupY = mirrorCenterY - halfCellH - popupHeight - 14;
 
-    // 위쪽 공간이 부족할 때 (1행 또는 2행 상단): 옆쪽 또는 아래쪽으로 지능적 우회
     if (popupY < 8) {
-      // 1. 오른쪽 옆으로 띄우기
       if (mirrorCenterX + halfCellW + popupWidth + 14 < containerRect.width) {
         popupX = mirrorCenterX + halfCellW + 14;
         popupY = mirrorCenterY - popupHeight / 2;
-      }
-      // 2. 왼쪽 옆으로 띄우기
-      else if (mirrorCenterX - halfCellW - popupWidth - 14 > 8) {
+      } else if (mirrorCenterX - halfCellW - popupWidth - 14 > 8) {
         popupX = mirrorCenterX - halfCellW - popupWidth - 14;
         popupY = mirrorCenterY - popupHeight / 2;
-      }
-      // 3. 아래쪽으로 넉넉히 띄우기
-      else {
+      } else {
         popupX = mirrorCenterX - popupWidth / 2;
         popupY = mirrorCenterY + halfCellH + 14;
       }
     }
 
-    // 컨테이너 경계선 클리핑 방지
     popupX = Math.max(8, Math.min(containerRect.width - popupWidth - 8, popupX));
     popupY = Math.max(8, Math.min(containerRect.height - popupHeight - 8, popupY));
 
@@ -636,7 +648,7 @@ class LightMazeGame {
     this.isFiring = true;
     this.safeSound('playLaserFire');
 
-    // 물리 엔진을 통한 경로 및 충돌 계산
+    // 물리 엔진 계산
     const traceResult = this.optics.traceLight(
       this.currentStage,
       this.mirrors,
@@ -645,12 +657,10 @@ class LightMazeGame {
     );
     this.lastTraceResult = traceResult;
 
-    // 실시간 애니메이션 세그먼트 생성
     this.animPath = traceResult.path || [];
     this.animProgress = 0;
     this.absorbEffectPoint = traceResult.absorberHitPoint;
 
-    // 미션 종합 평가 (성공/실패)
     const evaluation = this.optics.evaluateStageCompletion(
       this.currentStage,
       traceResult,
@@ -661,7 +671,6 @@ class LightMazeGame {
 
     this.setFeedback('광선이 진행 중입니다...', 'info');
 
-    // 예외 안전 처리: 경로 세그먼트가 1개 이하이면 즉시 종료 처리
     if (this.animPath.length <= 1) {
       this.onLaserAnimationEnd();
     }
@@ -676,14 +685,11 @@ class LightMazeGame {
     if (evalResult.success) {
       this.safeSound('playSuccess');
 
-      // 새로운 수신기 점등 시 목록에 추가
       if (evalResult.newlyLitReceiverId && !this.litReceivers.includes(evalResult.newlyLitReceiverId)) {
         this.litReceivers.push(evalResult.newlyLitReceiverId);
       }
 
-      // 스테이지 최종 클리어 판정
       if (evalResult.isStageFullyCleared) {
-        // 영구 저장소에 클리어 및 코어 증가 기록
         this.storage.clearStage(this.currentStageId, evalResult.badgeEarned);
         this.updateGlobalCoreIndicators();
 
@@ -691,7 +697,6 @@ class LightMazeGame {
           this.openSuccessModal(evalResult);
         }, 400);
       } else {
-        // 9~10단계 중간 수신기 점등 알림
         this.setFeedback(evalResult.message, 'success');
       }
     } else {
@@ -700,18 +705,16 @@ class LightMazeGame {
     }
   }
 
-  // 성공 모달 띄우기 (구역 완료 및 최종 엔딩 분기)
+  // 성공 모달
   openSuccessModal(evalResult) {
     const stageId = this.currentStageId;
 
-    // 10단계 최종 클리어 시: 최종 엔딩 모달 표시
     if (stageId === 10) {
       this.safeSound('playComplete');
       this.openModal('complete');
       return;
     }
 
-    // 1~9단계 성공 모달
     const modalTitle = document.getElementById('modal-stage-title');
     const modalDesc = document.getElementById('modal-core-desc');
     const modalBadge = document.getElementById('modal-success-badge');
@@ -721,7 +724,6 @@ class LightMazeGame {
     modalTitle.textContent = `${this.currentStage.title} 클리어!`;
     modalScience.textContent = this.currentStage.successExplanation;
 
-    // 3, 6, 9단계 구역 완료 특별 축하 메시지
     if (stageId === 3) {
       modalBadge.textContent = '🎉 [제1구역: 광학 연구소] 완전 복구!';
       modalDesc.textContent = '광학 연구소의 3개 코어가 모두 활성화되었습니다! 지하 에너지 통로가 열립니다.';
@@ -736,7 +738,6 @@ class LightMazeGame {
       modalDesc.textContent = `도시의 제${stageId} 에너지 코어가 정상 가동하기 시작했습니다.`;
     }
 
-    // 7단계 배지 획득 안내
     if (evalResult.badgeEarned === 'opticalArchitect') {
       badgeAlert.classList.remove('hidden');
     } else {
@@ -762,6 +763,112 @@ class LightMazeGame {
     nameEl.textContent = `${this.currentStage.title} - 탐구 힌트`;
     contentEl.textContent = hints[this.currentHintIndex] || '힌트가 없습니다.';
     indicatorEl.textContent = `힌트 ${this.currentHintIndex + 1}/${hints.length}`;
+  }
+
+  // =========================================================================
+  // [정답 공개 및 자동 배치 시스템]
+  // =========================================================================
+  openSolutionModal() {
+    if (!this.currentStage || !this.currentStage.solution) return;
+    this.closeModal('hint');
+
+    const sol = this.currentStage.solution;
+    const titleEl = document.getElementById('solution-title');
+    const descEl = document.getElementById('solution-desc-text');
+    const detailsEl = document.getElementById('solution-details');
+
+    titleEl.textContent = sol.title;
+    descEl.textContent = sol.description;
+    detailsEl.innerHTML = '';
+
+    // 다중 발사 단계 (9, 10단계)
+    if (sol.steps && Array.isArray(sol.steps)) {
+      sol.steps.forEach(step => {
+        const item = document.createElement('div');
+        item.className = 'solution-step-item';
+        item.innerHTML = `
+          <div class="solution-step-target">🎯 [${step.target}] 조준 거울 배치:</div>
+          <div class="solution-mirror-pills">
+            ${step.mirrors.map(m => `
+              <span class="solution-mirror-pill">(${m.x}, ${m.y}) ➜ ${m.angle}° ${m.angle === 135 ? '＼' : '／'}</span>
+            `).join('')}
+          </div>
+        `;
+        detailsEl.appendChild(item);
+      });
+    } else if (sol.mirrors && sol.mirrors.length > 0) {
+      // 일반 거울 배치 단계
+      const item = document.createElement('div');
+      item.className = 'solution-step-item';
+      item.innerHTML = `
+        <div class="solution-step-target">🪞 추천 거울 배치 좌표 & 각도:</div>
+        <div class="solution-mirror-pills">
+          ${sol.mirrors.map(m => `
+            <span class="solution-mirror-pill">(${m.x}, ${m.y}) 위치 ➜ ${m.angle}° ${m.angle === 135 ? '＼' : '／'}</span>
+          `).join('')}
+        </div>
+      `;
+      detailsEl.appendChild(item);
+    } else if (sol.customDir) {
+      // 1단계 방향 선택
+      const item = document.createElement('div');
+      item.className = 'solution-step-item';
+      item.innerHTML = `
+        <div class="solution-step-target">🧭 광원 발사 방향 설정:</div>
+        <span class="solution-mirror-pill">오른쪽 (▶) 선택</span>
+      `;
+      detailsEl.appendChild(item);
+    }
+
+    this.openModal('solution');
+  }
+
+  // 정답 그대로 캔버스에 자동 배치하기
+  applySolution() {
+    if (!this.currentStage || !this.currentStage.solution) return;
+    const sol = this.currentStage.solution;
+
+    // 1단계 광원 방향 자동 설정
+    if (sol.customDir) {
+      this.customSourceDir = { ...sol.customDir };
+      const dirButtons = document.querySelectorAll('.btn-dir');
+      dirButtons.forEach(btn => {
+        if (btn.dataset.dir === sol.dirName) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      this.setFeedback('광원 발사 방향이 [▶ 우]로 자동 설정되었습니다! [⚡ 빛 발사]를 눌러보세요.', 'success');
+    }
+
+    // 9, 10단계 다중 발사 단계인 경우: 아직 켜지지 않은 코어의 정답 배치를 지능적으로 선택
+    if (sol.steps && Array.isArray(sol.steps)) {
+      let targetStep = sol.steps[0];
+      if (this.currentStageId === 9) {
+        if (this.litReceivers.includes('rec_9_a')) {
+          targetStep = sol.steps[1]; // 베타 코어 배치
+        }
+      } else if (this.currentStageId === 10) {
+        if (!this.litReceivers.includes('rec_10_top')) {
+          targetStep = sol.steps[0];
+        } else if (!this.litReceivers.includes('rec_10_bot')) {
+          targetStep = sol.steps[1];
+        } else {
+          targetStep = sol.steps[2]; // 중앙 코어
+        }
+      }
+      this.mirrors = targetStep.mirrors.map(m => ({ ...m }));
+      this.setFeedback(`[${targetStep.target}] 정답 배치가 완료되었습니다! [⚡ 빛 발사]를 눌러보세요.`, 'success');
+    } else if (sol.mirrors) {
+      // 일반 단계 거울 자동 배치
+      this.mirrors = sol.mirrors.map(m => ({ ...m }));
+      this.setFeedback('정답 거울 배치가 완료되었습니다! [⚡ 빛 발사]를 눌러 확인해 보세요.', 'success');
+    }
+
+    this.updateMirrorInventoryBadge();
+    this.closeModal('solution');
+    this.safeSound('playPlace');
   }
 
   // 모달 제어 헬퍼
@@ -811,16 +918,14 @@ class LightMazeGame {
   }
 
   update(dt) {
-    // 광선 애니메이션 진행도 업데이트
     if (this.isFiring && this.animPath.length > 1) {
-      this.animProgress += dt * 3.5; // 애니메이션 속도
+      this.animProgress += dt * 3.5;
       if (this.animProgress >= this.animPath.length - 1) {
         this.animProgress = this.animPath.length - 1;
         this.onLaserAnimationEnd();
       }
     }
 
-    // 파티클 업데이트
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx * dt;
@@ -877,7 +982,6 @@ class LightMazeGame {
     this.drawParticles(ctx);
   }
 
-  // 그리드 배경선
   drawGrid(ctx, stage) {
     ctx.save();
     ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
@@ -897,7 +1001,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 거울 슬롯 점선 박스
   drawSlots(ctx, stage) {
     if (!stage.slots) return;
     ctx.save();
@@ -909,7 +1012,6 @@ class LightMazeGame {
       ctx.setLineDash([4, 4]);
       ctx.strokeRect(x + 4, y + 4, this.gridSize - 8, this.gridSize - 8);
 
-      // 슬롯 중앙 작은 + 표식
       ctx.setLineDash([]);
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
       const cx = x + this.gridSize / 2;
@@ -922,7 +1024,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 일반 벽 타일
   drawWalls(ctx, stage) {
     if (!stage.walls) return;
     ctx.save();
@@ -937,7 +1038,6 @@ class LightMazeGame {
       ctx.lineWidth = 2;
       ctx.strokeRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
 
-      // 대각선 질감 패턴
       ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -947,7 +1047,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 흡수 패널 타일 (빛을 빨아들이는 붉은색 격자)
   drawAbsorbers(ctx, stage) {
     if (!stage.absorbers) return;
     ctx.save();
@@ -955,16 +1054,13 @@ class LightMazeGame {
       const x = ab.x * this.gridSize;
       const y = ab.y * this.gridSize;
 
-      // 짙은 붉은색 배경
       ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
       ctx.fillRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
 
-      // 붉은색 테두리
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
       ctx.strokeRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
 
-      // 흡수 경고 격자 X
       ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -972,7 +1068,6 @@ class LightMazeGame {
       ctx.moveTo(x + this.gridSize - 6, y + 6); ctx.lineTo(x + 6, y + this.gridSize - 6);
       ctx.stroke();
 
-      // 흡수 마크 텍스트
       ctx.fillStyle = '#fca5a5';
       ctx.font = 'bold 9px sans-serif';
       ctx.textAlign = 'center';
@@ -981,7 +1076,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 체크포인트 센서 (투과형 발광 센서)
   drawCheckpoints(ctx, stage) {
     const cps = stage.checkpoints || (stage.checkpoint ? [stage.checkpoint] : []);
     if (!cps.length) return;
@@ -992,7 +1086,6 @@ class LightMazeGame {
       const cy = (cp.y + 0.5) * this.gridSize;
       const radius = this.gridSize * 0.35;
 
-      // 외부 발광 링
       ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)';
       ctx.lineWidth = 2;
       ctx.setLineDash([3, 3]);
@@ -1000,14 +1093,12 @@ class LightMazeGame {
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 내부 투명 원
       ctx.setLineDash([]);
       ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 0.75, 0, Math.PI * 2);
       ctx.fill();
 
-      // 센서 라벨
       ctx.fillStyle = '#4ade80';
       ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'center';
@@ -1017,7 +1108,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 수신기들 렌더링 (단일 및 다중 점등 상태)
   drawReceivers(ctx, stage) {
     const recs = stage.receivers || (stage.receiver ? [stage.receiver] : []);
     ctx.save();
@@ -1027,26 +1117,22 @@ class LightMazeGame {
       const radius = this.gridSize * 0.35;
       const isLit = this.litReceivers.includes(rec.id);
 
-      // 발광 외곽선
       ctx.strokeStyle = isLit ? '#fbbf24' : '#38bdf8';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 내부 코어 젬
       ctx.fillStyle = isLit ? '#f59e0b' : '#0284c7';
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 0.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // 중심 하이라이트
       ctx.fillStyle = isLit ? '#fef08a' : '#e0f2fe';
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 0.25, 0, Math.PI * 2);
       ctx.fill();
 
-      // 라벨
       ctx.fillStyle = isLit ? '#fde68a' : '#bae6fd';
       ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'center';
@@ -1055,14 +1141,12 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 광원 발사대
   drawSource(ctx, stage) {
     const cx = (stage.source.x + 0.5) * this.gridSize;
     const cy = (stage.source.y + 0.5) * this.gridSize;
     const dir = this.customSourceDir || stage.source.dir;
 
     ctx.save();
-    // 광원 본체 림
     ctx.fillStyle = '#6366f1';
     ctx.beginPath();
     ctx.arc(cx, cy, this.gridSize * 0.32, 0, Math.PI * 2);
@@ -1072,7 +1156,6 @@ class LightMazeGame {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 발사 방향 노즐
     const normDir = Vector2D.normalize(dir);
     const nozzleLen = this.gridSize * 0.4;
     ctx.strokeStyle = '#f43f5e';
@@ -1085,14 +1168,12 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 설치된 회전 거울들
   drawMirrors(ctx) {
     ctx.save();
     this.mirrors.forEach(mirror => {
       const seg = this.optics.getMirrorSegment(mirror);
       const isSelected = this.activeMirror === mirror;
 
-      // 거울 반사면 본체 (두꺼운 은빛 선)
       ctx.strokeStyle = isSelected ? '#38bdf8' : '#e2e8f0';
       ctx.lineWidth = isSelected ? 6 : 4;
       ctx.beginPath();
@@ -1100,14 +1181,12 @@ class LightMazeGame {
       ctx.lineTo(seg.p2.x, seg.p2.y);
       ctx.stroke();
 
-      // 거울 양 끝단 원형 힌지
       ctx.fillStyle = '#94a3b8';
       ctx.beginPath();
       ctx.arc(seg.p1.x, seg.p1.y, 3, 0, Math.PI * 2);
       ctx.arc(seg.p2.x, seg.p2.y, 3, 0, Math.PI * 2);
       ctx.fill();
 
-      // 거울 각도 표시 텍스트
       const cx = (mirror.x + 0.5) * this.gridSize;
       const cy = (mirror.y + 0.5) * this.gridSize;
       ctx.fillStyle = '#cbd5e1';
@@ -1118,7 +1197,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 광선(레이저) 궤적 렌더링
   drawLaserRay(ctx) {
     if (!this.animPath || this.animPath.length < 2) return;
 
@@ -1129,7 +1207,6 @@ class LightMazeGame {
     const currentIdx = Math.floor(this.animProgress);
     const t = this.animProgress - currentIdx;
 
-    // 외곽 레이저 발광 글로우
     ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
     ctx.lineWidth = 6;
     ctx.beginPath();
@@ -1147,7 +1224,6 @@ class LightMazeGame {
     }
     ctx.stroke();
 
-    // 레이저 코어 빔 (밝은 흰/적색 선)
     ctx.strokeStyle = '#fff1f2';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -1168,13 +1244,11 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 법선 및 각도 관찰기 오버레이 렌더링
   drawObserver(ctx, reflections) {
     if (!reflections || !reflections.length) return;
 
     ctx.save();
     reflections.forEach((ref, idx) => {
-      // 1. 법선(Normal) 점선 렌더링
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 4]);
@@ -1184,13 +1258,11 @@ class LightMazeGame {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 2. 충돌점 원
       ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
       ctx.arc(ref.point.x, ref.point.y, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. 입사각 및 반사각 호(Arc) 및 텍스트 표시
       ctx.fillStyle = '#fef08a';
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
@@ -1208,7 +1280,6 @@ class LightMazeGame {
     ctx.restore();
   }
 
-  // 스파크 파티클 렌더링
   drawParticles(ctx) {
     if (!this.particles.length) return;
     ctx.save();
