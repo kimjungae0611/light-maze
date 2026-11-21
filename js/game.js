@@ -51,6 +51,17 @@ class LightMazeGame {
     requestAnimationFrame(this.renderLoop);
   }
 
+  // 사운드 안전 호출 헬퍼
+  safeSound(methodName, ...args) {
+    if (this.sound && typeof this.sound[methodName] === 'function') {
+      try {
+        this.sound[methodName](...args);
+      } catch (e) {
+        console.warn(`사운드 ${methodName} 재생 중 오류 (게임 계속 진행):`, e);
+      }
+    }
+  }
+
   // DOM 요소 캐싱
   cacheDomElements() {
     this.screens = {
@@ -184,7 +195,6 @@ class LightMazeGame {
     this.stageSelectContainer.innerHTML = '';
     this.updateGlobalCoreIndicators();
 
-    // 4개 구역 메타 정의
     const zones = [
       { name: "제1구역: 광학 연구소", range: [1, 3], icon: "🔬", desc: "빛의 직진과 1~2회 기본 반사의 원리를 마스터합니다." },
       { name: "제2구역: 지하 에너지 통로", range: [4, 6], icon: "⚡", desc: "꺾인 통로, 체크포인트 센서, 흡수 패널을 우회합니다." },
@@ -233,7 +243,7 @@ class LightMazeGame {
 
         if (isUnlocked) {
           card.addEventListener('click', () => {
-            this.sound.playClick();
+            this.safeSound('playClick');
             this.loadStage(sId);
             this.showScreen('screen-game');
           });
@@ -251,24 +261,24 @@ class LightMazeGame {
   bindEvents() {
     // 네비게이션
     document.getElementById('btn-start-game').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       const stageToPlay = Math.min(this.storage.memoryStore.unlockedStage, 10);
       this.loadStage(stageToPlay);
       this.showScreen('screen-game');
     });
 
     document.getElementById('btn-show-stages').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.showScreen('screen-stages');
     });
 
     document.getElementById('btn-back-to-intro').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.showScreen('screen-intro');
     });
 
     document.getElementById('btn-nav-stages').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.showScreen('screen-stages');
     });
 
@@ -276,7 +286,7 @@ class LightMazeGame {
     document.getElementById('btn-toggle-sound').addEventListener('click', () => {
       const isMuted = this.sound.toggleMute();
       this.updateAudioButtonState();
-      if (!isMuted) this.sound.playClick();
+      if (!isMuted) this.safeSound('playClick');
     });
 
     // 1단계 광원 방향 선택
@@ -284,7 +294,7 @@ class LightMazeGame {
     dirButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         if (this.isFiring) return;
-        this.sound.playClick();
+        this.safeSound('playClick');
         dirButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
@@ -306,7 +316,7 @@ class LightMazeGame {
 
     // 액션 버튼: 관찰기 토글
     document.getElementById('btn-toggle-observer').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.isObserverOn = !this.isObserverOn;
       this.updateObserverButtonState();
       if (this.isObserverOn) {
@@ -318,14 +328,14 @@ class LightMazeGame {
 
     // 액션 버튼: 힌트
     document.getElementById('btn-hint').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.openHintModal();
     });
 
     // 액션 버튼: 단계 초기화 (점등 상태 및 배치 초기화)
     document.getElementById('btn-reset-stage').addEventListener('click', () => {
       if (this.isFiring) return;
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.resetCurrentStage();
       this.setFeedback('배치와 점등 상태가 초기 상태로 리셋되었습니다. 다시 도전해 보세요!', 'info');
     });
@@ -333,26 +343,26 @@ class LightMazeGame {
     // 거울 조작 팝업 버튼들
     document.getElementById('btn-popup-rotate-ccw').addEventListener('click', () => {
       if (this.isFiring || !this.activeMirror) return;
-      this.sound.playRotate();
+      this.safeSound('playRotate');
       this.rotateMirror(this.activeMirror, -45);
     });
 
     document.getElementById('btn-popup-rotate-cw').addEventListener('click', () => {
       if (this.isFiring || !this.activeMirror) return;
-      this.sound.playRotate();
+      this.safeSound('playRotate');
       this.rotateMirror(this.activeMirror, 45);
     });
 
     document.getElementById('btn-popup-remove').addEventListener('click', () => {
       if (this.isFiring || !this.activeMirror) return;
-      this.sound.playRemove();
+      this.safeSound('playRemove');
       this.removeMirror(this.activeMirror);
       this.hideMirrorPopup();
     });
 
     // 모달 버튼들: 단계 성공 모달
     document.getElementById('btn-modal-next').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.closeModal('success');
       if (this.currentStageId < 10) {
         this.loadStage(this.currentStageId + 1);
@@ -362,44 +372,44 @@ class LightMazeGame {
     });
 
     document.getElementById('btn-modal-replay').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.closeModal('success');
     });
 
     // 최종 엔딩 모달 버튼들
     document.getElementById('btn-complete-stages').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.closeModal('complete');
       this.showScreen('screen-stages');
     });
 
     document.getElementById('btn-complete-restart').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.closeModal('complete');
       this.loadStage(1);
     });
 
     // 힌트 모달 버튼들
     document.getElementById('btn-next-hint').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       if (!this.currentStage || !this.currentStage.hints) return;
       this.currentHintIndex = (this.currentHintIndex + 1) % this.currentStage.hints.length;
       this.updateHintModalContent();
     });
 
     document.getElementById('btn-close-hint').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.closeModal('hint');
     });
 
     // 세이브 데이터 전체 초기화 모달
     document.getElementById('btn-reset-saved-data').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.openModal('confirmReset');
     });
 
     document.getElementById('btn-confirm-reset-yes').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.storage.resetAll();
       this.closeModal('confirmReset');
       this.updateGlobalCoreIndicators();
@@ -407,7 +417,7 @@ class LightMazeGame {
     });
 
     document.getElementById('btn-confirm-reset-cancel').addEventListener('click', () => {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.closeModal('confirmReset');
     });
 
@@ -439,6 +449,7 @@ class LightMazeGame {
     this.customSourceDir = stage.source.allowDirChange ? { ...stage.source.dir } : null;
     this.currentHintIndex = 0;
     this.activeMirror = null;
+    this.isFiring = false;
     this.hideMirrorPopup();
 
     this.resizeCanvasForStage(stage);
@@ -471,6 +482,7 @@ class LightMazeGame {
     this.lastTraceResult = null;
     this.absorbEffectPoint = null;
     this.activeMirror = null;
+    this.isFiring = false;
     this.hideMirrorPopup();
     this.updateMirrorInventoryBadge();
   }
@@ -505,7 +517,7 @@ class LightMazeGame {
     // 1. 이미 설치된 거울을 클릭했는지 확인
     const clickedMirror = this.mirrors.find(m => m.x === gx && m.y === gy);
     if (clickedMirror) {
-      this.sound.playClick();
+      this.safeSound('playClick');
       this.showMirrorPopup(clickedMirror, e.clientX, e.clientY);
       return;
     }
@@ -518,7 +530,7 @@ class LightMazeGame {
     if (isSlot) {
       // 거울 잔여 수량 확인
       if (this.mirrors.length >= this.currentStage.availableMirrors) {
-        this.sound.playError();
+        this.safeSound('playError');
         this.setFeedback(`더 이상 거울을 설치할 수 없습니다! (최대 ${this.currentStage.availableMirrors}개)`, 'warning');
         return;
       }
@@ -526,7 +538,7 @@ class LightMazeGame {
       // 새 거울 설치 (기본 각도 135도)
       const newMirror = { x: gx, y: gy, angle: 135 };
       this.mirrors.push(newMirror);
-      this.sound.playPlace();
+      this.safeSound('playPlace');
       this.updateMirrorInventoryBadge();
       this.setFeedback(`거울이 (${gx}, ${gy})에 설치되었습니다. 거울을 눌러 회전시키거나 회수할 수 있습니다.`, 'success');
 
@@ -576,7 +588,7 @@ class LightMazeGame {
     if (!this.currentStage) return;
     this.hideMirrorPopup();
     this.isFiring = true;
-    this.sound.playLaserFire();
+    this.safeSound('playLaserFire');
 
     // 물리 엔진을 통한 경로 및 충돌 계산
     const traceResult = this.optics.traceLight(
@@ -588,7 +600,7 @@ class LightMazeGame {
     this.lastTraceResult = traceResult;
 
     // 실시간 애니메이션 세그먼트 생성
-    this.animPath = traceResult.path;
+    this.animPath = traceResult.path || [];
     this.animProgress = 0;
     this.absorbEffectPoint = traceResult.absorberHitPoint;
 
@@ -602,6 +614,11 @@ class LightMazeGame {
     this.evaluation = evaluation;
 
     this.setFeedback('광선이 진행 중입니다...', 'info');
+
+    // 예외 안전 처리: 경로 세그먼트가 1개 이하이면 즉시 종료 처리
+    if (this.animPath.length <= 1) {
+      this.onLaserAnimationEnd();
+    }
   }
 
   // 광선 발사 애니메이션 완료 후 처리
@@ -611,7 +628,7 @@ class LightMazeGame {
     if (!evalResult) return;
 
     if (evalResult.success) {
-      this.sound.playSuccess();
+      this.safeSound('playSuccess');
 
       // 새로운 수신기 점등 시 목록에 추가
       if (evalResult.newlyLitReceiverId && !this.litReceivers.includes(evalResult.newlyLitReceiverId)) {
@@ -632,7 +649,7 @@ class LightMazeGame {
         this.setFeedback(evalResult.message, 'success');
       }
     } else {
-      this.sound.playFail();
+      this.safeSound('playFail');
       this.setFeedback(evalResult.message, 'warning');
     }
   }
@@ -643,7 +660,7 @@ class LightMazeGame {
 
     // 10단계 최종 클리어 시: 최종 엔딩 모달 표시
     if (stageId === 10) {
-      this.sound.playComplete();
+      this.safeSound('playComplete');
       this.openModal('complete');
       return;
     }
